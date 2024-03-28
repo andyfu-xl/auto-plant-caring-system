@@ -1,4 +1,4 @@
-# sdp
+# System design project (8-person group)
 SDP Group 20 robotics project, onboard software. For web api see repo [here](https://github.com/v-raja/power-plant-api-web).
 
 ## Project Plan
