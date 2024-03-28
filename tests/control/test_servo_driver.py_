@@ -1,0 +1,39 @@
+import pytest
+from .. import test_setup
+
+import powerplant.control.servo_driver as sd
+
+
+@pytest.fixture
+def servo_driver_180():
+    """Return a 180 degree motor"""
+    driver = sd.ServoDriver(
+        2,
+        (0,180),
+        (1/2000,2/2000)
+    )
+    return driver
+
+
+@pytest.mark.timeout(20)
+def test_action_too_fast(servo_driver_180):
+    """Check driver does not attempt actions that are too fast"""
+    assert servo_driver_180.set_angle(90,sd.MIN_SERVO_MOVE_TIME/2) == 0
+
+
+@pytest.mark.timeout(20)
+def test_action_over_extending(servo_driver_180):
+    """Check driver does not attempt actions that over extend the joint"""
+    assert servo_driver_180.set_angle(-20, sd.MIN_SERVO_MOVE_TIME) == 0
+
+
+@pytest.mark.timeout(20)
+def test_action_under_extending(servo_driver_180):
+    """Check driver does not attempt actions that under extend the joint"""
+    assert servo_driver_180.set_angle(200, sd.MIN_SERVO_MOVE_TIME) == 0
+
+
+@pytest.mark.timeout(20)
+def test_simple_legal_action_attempted(servo_driver_180):
+    """Check that a legal action in a simple situation is attepted and carried out without exception."""
+    assert servo_driver_180.set_angle(90, sd.MIN_SERVO_MOVE_TIME) == 1

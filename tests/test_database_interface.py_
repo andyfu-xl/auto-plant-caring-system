@@ -1,0 +1,69 @@
+from datetime import datetime
+import time
+from . import test_setup
+import powerplant.database_interface as di
+from powerplant.state.plant_pot import PlantPot
+# Use known example data in the database to make tests
+
+example_plant = {"id":2, "name":"Lily", "waterInterval":2000}
+example_slot = {"id":1, "plant":{"name":"Fern"}, "assignedAt":"2022-02-14T16:59:30.147Z", "lastWateredAt": None}
+initialized_di = di.DatabaseInterface(machine_id='testplanter')
+
+def test_get_plant_params():
+    """Check if get plant request to the database returns correct moist value"""
+    plant_name = "anthurium_andraeanum_amis"
+    min_moist, max_moist = initialized_di.get_plant_params(plant_name)
+    assert min_moist == 15
+    assert max_moist == 65
+
+def test_litener_update():
+    """check if local plant pot array update every time the plants field of planter data changes in database"""
+    initialized_di.initialize_planter_remote()
+    plant_pots = [[PlantPot()for _ in range(3)]for _ in range(2)]
+    watcher = initialized_di.usr_plant_change_listener(plant_pots)
+    start = time.time()
+    while (time.time()-start <= 3):
+        if time.time()-start == 1:
+            planter_ref = initialized_di.db.collection("planters").document(initialized_di.machine_id)
+            planter_ref.update({"plants.slot_one": "anthurium_andraeanum_amis",
+                                "plants.slot_five": "anthurium_andraeanum_aramon"})
+    watcher.unsubscribe()
+
+    assert plant_pots[0][0].plant_type == "anthurium_andraeanum_amis"
+    assert plant_pots[1][1].plant_type == "anthurium_andraeanum_aramon"
+    assert plant_pots[0][0].max_soil_moist == 65
+    assert plant_pots[0][0].min_soil_moist == 15
+    assert plant_pots[1][1].max_soil_moist == 65
+    assert plant_pots[1][1].min_soil_moist == 15
+    initialized_di.initialize_planter_remote()
+
+def test_update_moisture_info():
+    """Check if the updated measurement info is correctly updated to the database"""
+    initialized_di.initialize_planter_remote()
+    now = datetime.now()
+    initialized_di.update_moisture_info_remote(1,1, now,45)
+    planter_ref = initialized_di.db.collection("planters").document(initialized_di.machine_id).get()
+    measure_time = planter_ref.get("last_measurement")["slot_five"]["time"]
+    moist = planter_ref.get("last_measurement")["slot_five"]["moisture"]
+    assert datetime.fromtimestamp(measure_time.timestamp()) == now
+    assert moist == 45
+    initialized_di.initialize_planter_remote()
+
+def test_update_water_info():
+    """Check if updated watered info for a given slot is correctly updated to the database"""
+    initialized_di.initialize_planter_remote()
+    now = datetime.now()
+    initialized_di.update_watered_info_remote(1,2, now)
+    planter_ref = initialized_di.db.collection("planters").document(initialized_di.machine_id).get()
+    watered_time = planter_ref.get("last_watered_at")["slot_six"]
+    assert datetime.fromtimestamp(watered_time.timestamp()) == now
+    initialized_di.initialize_planter_remote()
+
+
+
+
+def test_json_serial():
+    """Check if the time string is converted to correct format YYYY-MM-DDTH:Min:Sec:Millisec"""
+    correct = "2011-12-25T23:22:34.104567Z"
+    to_be_tested_time = datetime(2011, 12, 25, 23, 22, 34, 104567)
+    assert initialized_di.json_serial(to_be_tested_time) == correct
